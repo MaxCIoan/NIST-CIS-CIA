@@ -9,6 +9,7 @@ This file is now the index for the split project guides.
 
 ## Supporting notes
 
+- [NIST CSF Framework to Follow](./NIST_CSF_Framework_To_Follow.md)
 - [NIST SP 800-207 - Zero Trust Notes](./NIST_SP_800_207_Zero_Trust_Notes.md)
 - [NIST CSWP 29 - CSF 2.0 Notes](./NIST_CSWP_29_CSF_2_0_Notes.md)
 - [CIS Controls v8.1 Notes](./CIS_Controls_v8_1_Notes.md)
