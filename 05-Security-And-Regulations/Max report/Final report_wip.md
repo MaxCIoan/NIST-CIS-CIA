@@ -345,3 +345,95 @@ The design should be defended as a solid Packet Tracer security implementation b
 The Phase 2 Packet Tracer network demonstrates the right security direction: separate trust zones, restrict traffic between zones, isolate the public web server in a DMZ, harden access ports, use SSH for administration, and send logs/time to a central server.
 
 For a real organization, the most urgent fixes are replacing weak credentials, proving centralized AAA, tightening ACLs, and removing single points of failure. These improvements would make the design easier to defend against CIS, NIST, MITRE ATT&CK, CCB CyFun, NIS2, and GDPR expectations.
+
+## 🔐 Appendix - HTTP Server ACL Evidence
+
+The following ACL block was used for internet-side access to the DMZ HTTP server. This section is included as direct configuration evidence for the finding about DMZ exposure and inbound filtering.
+
+```ios
+ip access-list extended ACL_INTERNET_IN
+ remark Inbound traffic from Internet
+ permit tcp any host 192.168.10.195 eq 80
+ permit tcp any host 192.168.10.195 eq 443
+ permit tcp any any established
+ permit udp any any eq 53
+ deny ip any any
+
+interface GigabitEthernet0/0/0
+ ip access-group ACL_INTERNET_IN in
+```
+
+| Rule | Meaning | Visual status |
+| --- | --- | --- |
+| `permit tcp any host 192.168.10.195 eq 80` | Allows HTTP access to the DMZ web server. | <span style="color:#0B6E4F"><strong>Green - expected</strong></span> |
+| `permit tcp any host 192.168.10.195 eq 443` | Allows HTTPS access to the DMZ web server. | <span style="color:#0B6E4F"><strong>Green - expected</strong></span> |
+| `permit tcp any any established` | Allows return traffic for established TCP sessions. | <span style="color:#D97706"><strong>Yellow - broad but common in labs</strong></span> |
+| `permit udp any any eq 53` | Allows DNS traffic on UDP 53. | <span style="color:#D97706"><strong>Yellow - should be narrowed in production</strong></span> |
+| `deny ip any any` | Blocks all other inbound internet traffic. | <span style="color:#0B6E4F"><strong>Green - protective</strong></span> |
+
+## 🔑 Appendix - Device Access, Users, And Password Evidence
+
+This matrix is based on the command log, the phase 2 report, and the RADIUS/DHCP screenshot. Where the exact final Packet Tracer setting was not proven, the status is marked as verification required instead of assumed.
+
+### Legend
+
+| Color | Meaning |
+| --- | --- |
+| <span style="color:#0B6E4F"><strong>Green</strong></span> | Access is expected and supported by the design evidence. |
+| <span style="color:#D97706"><strong>Yellow</strong></span> | Access or credential exists in evidence, but final behavior must be verified in Packet Tracer. |
+| <span style="color:#B00020"><strong>Red</strong></span> | Access should be blocked, is not proven, or uses weak demo credentials. |
+
+### Known Management And Service Credentials
+
+| Credential / secret | Where seen | Used for | Risk status |
+| --- | --- | --- | --- |
+| `admin` / `admin` | `username admin privilege 15 secret admin` | Local network-device administrator login attempt. | <span style="color:#B00020"><strong>Red - weak demo password</strong></span> |
+| `admin` / `cisco` | `username admin secret cisco` and console `password cisco` evidence | Local device login / console-style lab credential. | <span style="color:#B00020"><strong>Red - weak demo password</strong></span> |
+| `admin` / `123456789` | `username admin secret 123456789` evidence | Local admin password attempt. | <span style="color:#B00020"><strong>Red - weak demo password</strong></span> |
+| RADIUS key `cisco123` | RADIUS evidence in report | Shared key between network devices and RADIUS server. | <span style="color:#B00020"><strong>Red - weak shared secret</strong></span> |
+| FTP user | Report says FTP user evidence conflicts | FTP/storage server access. | <span style="color:#D97706"><strong>Yellow - verify exact final user in .pkt</strong></span> |
+
+### Device And Server Access Matrix
+
+| Source device / user group | Can access | Evidence / reason | Should not access | Visual status |
+| --- | --- | --- | --- | --- |
+| Internet / ISP side | HTTP server `192.168.10.195` on TCP `80` and `443` | `ACL_INTERNET_IN` permits HTTP/HTTPS to the DMZ server. | Internal VLANs, device management IPs, server VLAN, storage VLAN. | <span style="color:#0B6E4F"><strong>Green</strong></span> |
+| Internet / ISP side | DNS UDP `53` as allowed by ACL | `ACL_INTERNET_IN` contains `permit udp any any eq 53`. | All other inbound traffic due to `deny ip any any`. | <span style="color:#D97706"><strong>Yellow</strong></span> |
+| `Switch-L3-CORE` | RADIUS server `192.168.10.132` | AAA/RADIUS was attempted; RADIUS key `cisco123` is documented. | Should not rely only on local fallback authentication. | <span style="color:#D97706"><strong>Yellow - RADIUS not fully proven</strong></span> |
+| `Switch-L2-A` `192.168.10.163` | RADIUS server `192.168.10.132` and management gateway `192.168.10.161` | Report says all switches use management VLAN 99 and RADIUS/AAA attempt exists. | Should not be reachable from untrusted networks. | <span style="color:#D97706"><strong>Yellow - verify final AAA behavior</strong></span> |
+| `Switch-L2-B` `192.168.10.164` | RADIUS server `192.168.10.132` and management gateway `192.168.10.161` | Management IP and default gateway are documented. | Should not be reachable from internet or DMZ. | <span style="color:#D97706"><strong>Yellow - verify final AAA behavior</strong></span> |
+| `Switch-L2-C` | RADIUS/server VLAN services | Report states same access-security pattern as other L2 switches, but exact management IP is not listed. | Should not allow unmanaged user access to VTY. | <span style="color:#D97706"><strong>Yellow - exact IP not proven</strong></span> |
+| `Switch-L2-D` | RADIUS/server VLAN services | Report states same access-security pattern as other L2 switches, but exact management IP is not listed. | Should not allow unmanaged user access to VTY. | <span style="color:#D97706"><strong>Yellow - exact IP not proven</strong></span> |
+| DMZ switch `192.168.10.194` | DMZ HTTP server `192.168.10.195`; gateway `192.168.10.193` | DMZ switch VLAN 60 and gateway are documented. | Internal user/server networks, unless explicitly permitted by ACL. | <span style="color:#0B6E4F"><strong>Green for DMZ role</strong></span> |
+| VLAN 10 Management/Study users | DNS, RADIUS, FTP, DMZ access, internet/established traffic | `ACL_MANAGEMENT_SECRETARIAT_STUDY_IN` summary in report. | Direct department-to-department access. | <span style="color:#D97706"><strong>Yellow - broad permits noted</strong></span> |
+| VLAN 20 Production users | DNS, DHCP, RADIUS, FTP, DMZ access, internet/established traffic | `ACL_PRODUCTION_IN` summary in report. | Direct access to other user departments. | <span style="color:#D97706"><strong>Yellow - broad permits noted</strong></span> |
+| VLAN 30 Support A users | Same service pattern as Production | `ACL_SUPPORT_A_IN` summary and DHCP permits documented. | Direct access to other user departments. | <span style="color:#D97706"><strong>Yellow - DHCP permits broad</strong></span> |
+| VLAN 40 Support B users | Same service pattern as Production | `ACL_SUPPORT_B_IN` summary and DHCP permits documented. | Direct access to other user departments. | <span style="color:#D97706"><strong>Yellow - DHCP permits broad</strong></span> |
+| VLAN 60 DMZ HTTP server `192.168.10.195` | External HTTP/HTTPS clients and gateway `192.168.10.193` | HTTP server placed in DMZ; `ACL_DMZ_IN` restricts DMZ movement. | Internal user/server/storage networks. | <span style="color:#0B6E4F"><strong>Green - isolated service</strong></span> |
+| VLAN 70 DNS server `192.168.10.130` | Network devices for syslog/NTP; clients for DNS | `logging 192.168.10.130`, `ntp server 192.168.10.130`, DNS role documented. | Should not become general-purpose access point. | <span style="color:#D97706"><strong>Yellow - service concentration</strong></span> |
+| VLAN 70 DHCP server `192.168.10.131` | User VLANs through `ip helper-address` | DHCP relay to `192.168.10.131` is documented. | Direct unmanaged access beyond DHCP. | <span style="color:#0B6E4F"><strong>Green for DHCP role</strong></span> |
+| VLAN 70 RADIUS server `192.168.10.132` | L3 core and switches for AAA/RADIUS | RADIUS server IP and key are documented; screenshot shows DHCP pool in `192.168.10.128/27`. | Internet, DMZ, and unauthorized user access. | <span style="color:#D97706"><strong>Yellow - service exists, AAA not fully proven</strong></span> |
+| VLAN 80 FTP/storage server `192.168.10.226` | User VLANs only where FTP/storage is permitted | `ACL_STORAGE_IN` and user ACL summaries mention FTP/storage access. | DMZ-originated or unrestricted access. | <span style="color:#D97706"><strong>Yellow - FTP user must be verified</strong></span> |
+
+### RADIUS / AAA Pool Evidence From Screenshot
+
+The RADIUS server screenshot shows a DHCP pool on interface `FastEthernet0`:
+
+| Field | Value shown |
+| --- | --- |
+| Pool name | `serverPool` |
+| Start IP address | `192.168.10.128` |
+| Subnet mask | `255.255.255.224` |
+| Maximum users | `512` |
+| Default gateway | `0.0.0.0` shown in screenshot |
+| DNS server | `0.0.0.0` shown in screenshot |
+
+Audit note: this confirms a server-side pool exists in the internal server range, but the default gateway and DNS fields appear as `0.0.0.0` in the screenshot. That should be treated as <span style="color:#D97706"><strong>Yellow - verify in Packet Tracer</strong></span>, because clients normally need a valid gateway and DNS server for production-quality DHCP behavior.
+
+### Access Summary To Defend Verbally
+
+- <span style="color:#0B6E4F"><strong>Allowed:</strong></span> Internet users may access only the DMZ HTTP server `192.168.10.195` on HTTP/HTTPS through `ACL_INTERNET_IN`.
+- <span style="color:#0B6E4F"><strong>Allowed:</strong></span> User VLANs may access required infrastructure services such as DNS, DHCP, RADIUS, FTP/storage, and DMZ web service according to the documented ACL summaries.
+- <span style="color:#D97706"><strong>Partially proven:</strong></span> Network devices are intended to use RADIUS/AAA server `192.168.10.132`, but Packet Tracer evidence does not fully prove real centralized AAA behavior.
+- <span style="color:#B00020"><strong>Not allowed:</strong></span> Internet and DMZ systems should not directly access internal user, management, server, or storage networks.
+- <span style="color:#B00020"><strong>Risk:</strong></span> Credentials such as `admin`, `cisco`, `123456789`, and `cisco123` are weak lab values and must be replaced in a real environment.
