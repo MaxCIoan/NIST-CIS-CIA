@@ -391,7 +391,9 @@ This matrix is based on the command log, the phase 2 report, and the RADIUS/DHCP
 | `admin` / `cisco` | `username admin secret cisco` and console `password cisco` evidence | Local device login / console-style lab credential. | <span style="color:#B00020"><strong>Red - weak demo password</strong></span> |
 | `admin` / `123456789` | `username admin secret 123456789` evidence | Local admin password attempt. | <span style="color:#B00020"><strong>Red - weak demo password</strong></span> |
 | RADIUS key `cisco123` | RADIUS evidence in report | Shared key between network devices and RADIUS server. | <span style="color:#B00020"><strong>Red - weak shared secret</strong></span> |
-| FTP user | Report says FTP user evidence conflicts | FTP/storage server access. | <span style="color:#D97706"><strong>Yellow - verify exact final user in .pkt</strong></span> |
+| FTP `admin` / `admin` | FTP screenshot | FTP/storage server access with `RWDNL` permissions. | <span style="color:#B00020"><strong>Red - weak password and broad permissions</strong></span> |
+| FTP `cisco` / `cisco` | FTP screenshot | FTP/storage server access with `RWDNL` permissions. | <span style="color:#B00020"><strong>Red - weak default-style password</strong></span> |
+| FTP `securityasiye` / `0000` | FTP screenshot | FTP/storage server access with `RWDNL` permissions. | <span style="color:#B00020"><strong>Red - weak numeric password</strong></span> |
 
 ### Device And Server Access Matrix
 
@@ -414,6 +416,34 @@ This matrix is based on the command log, the phase 2 report, and the RADIUS/DHCP
 | VLAN 70 DHCP server `192.168.10.131` | User VLANs through `ip helper-address` | DHCP relay to `192.168.10.131` is documented. | Direct unmanaged access beyond DHCP. | <span style="color:#0B6E4F"><strong>Green for DHCP role</strong></span> |
 | VLAN 70 RADIUS server `192.168.10.132` | L3 core and switches for AAA/RADIUS | RADIUS server IP and key are documented; screenshot shows DHCP pool in `192.168.10.128/27`. | Internet, DMZ, and unauthorized user access. | <span style="color:#D97706"><strong>Yellow - service exists, AAA not fully proven</strong></span> |
 | VLAN 80 FTP/storage server `192.168.10.226` | User VLANs only where FTP/storage is permitted | `ACL_STORAGE_IN` and user ACL summaries mention FTP/storage access. | DMZ-originated or unrestricted access. | <span style="color:#D97706"><strong>Yellow - FTP user must be verified</strong></span> |
+
+### FTP Service Evidence From Screenshot
+
+The FTP screenshot shows the FTP service is enabled and three local FTP users exist. All three visible users have `RWDNL` permissions, meaning read, write, delete, rename, and list permissions are enabled.
+
+| FTP user | Password shown | Permission shown | Risk status |
+| --- | --- | --- | --- |
+| `admin` | `admin` | `RWDNL` | <span style="color:#B00020"><strong>Red - weak password with full file permissions</strong></span> |
+| `cisco` | `cisco` | `RWDNL` | <span style="color:#B00020"><strong>Red - default-style credential with full file permissions</strong></span> |
+| `securityasiye` | `0000` | `RWDNL` | <span style="color:#B00020"><strong>Red - weak numeric password with full file permissions</strong></span> |
+
+Visible files on the FTP server include Cisco IOS image files such as:
+
+| Visible FTP file evidence |
+| --- |
+| `asa842-k8.bin` |
+| `asa923-k8.bin` |
+| `c1841-advipservicesk9-mz.124-15.T1.bin` |
+| `c1841-ipbase-mz.123-14.T7.bin` |
+| `c1841-ipbasek9-mz.124-12.bin` |
+| `c1900-universalk9-mz.SPA.155-3.M4a.bin` |
+| `c2600-advipservicesk9-mz.124-15.T1.bin` |
+| `c2600-i-mz.122-28.bin` |
+| `c2600-ipbasek9-mz.124-8.bin` |
+| `c2800nm-advipservicesk9-mz.124-15.T1.bin` |
+| `c2800nm-advipservicesk9-mz.151-4.M4.bin` |
+
+Audit note: because the FTP users have broad `RWDNL` permissions and weak passwords, the FTP service should be treated as <span style="color:#B00020"><strong>Red - high credential and integrity risk</strong></span>. A compromised user could read, upload, rename, or delete files, including network image files. In a production environment, FTP should be replaced with SFTP/SCP where possible, weak accounts should be removed, and permissions should be limited to the minimum required.
 
 ### RADIUS / AAA Pool Evidence From Screenshot
 
